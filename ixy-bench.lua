@@ -25,6 +25,8 @@ function configure(parser)
 	parser:option("-r --rate", "Transmit rate in Mbit/s."):default(0):convert(tonumber)
 	parser:option("-f --flows", "Number of flows (randomized source IP)."):default(1024):convert(tonumber)
 	parser:option("-s --size", "Packet size."):default(60):convert(tonumber)
+	parser:flag("-v --verify", "Try to receive packets and validate sequence numbers."):default(false)
+	parser:flag("-t --timestamps", "Take hardware timestamps of 1000 packets per second."):default(false)
 end
 
 function master(args)
@@ -32,19 +34,24 @@ function master(args)
 	local dev2 = device.config{port = args.dev2, rxQueues = 2, txQueues = 2}
 	device.waitForLinks()
 	if args.rate > 0 then
-		dev1:getTxQueue(0):setRate(args.rate - (args.size + 4) * 8 / 1000)
-		dev2:getTxQueue(0):setRate(args.rate - (args.size + 4) * 8 / 1000)
+		local timestampTrafficAdjuster = args.timestamps and (args.size + 4) * 8 / 1000 or 0
+		dev1:getTxQueue(0):setRate(args.rate - timestampTrafficAdjuster)
+		dev2:getTxQueue(0):setRate(args.rate - timestampTrafficAdjuster)
 	end
 	mg.startTask("loadSlave", dev1:getTxQueue(0), SRC_IP1, DST_IP1, dev2:getMacString(), args.size, args.flows)
 	mg.startTask("loadSlave", dev2:getTxQueue(0), SRC_IP2, DST_IP2, dev1:getMacString(), args.size, args.flows)
-	mg.startTask("sequenceCheck", dev1:getRxQueue(0), dev2:getRxQueue(0))
-	mg.startSharedTask("timerSlave",
-		dev1:getTxQueue(1), dev2:getRxQueue(1),
-		SRC_IP1, DST_IP1, dev2:getMacString(),
-		dev2:getTxQueue(1), dev1:getRxQueue(1),
-		SRC_IP2, DST_IP2, dev1:getMacString(),
-		args.size, args.flows
-	)
+	if args.verify then
+		mg.startTask("sequenceCheck", dev1:getRxQueue(0), dev2:getRxQueue(0))
+	end
+	if args.timestamps then
+		mg.startSharedTask("timerSlave",
+			dev1:getTxQueue(1), dev2:getRxQueue(1),
+			SRC_IP1, DST_IP1, dev2:getMacString(),
+			dev2:getTxQueue(1), dev1:getRxQueue(1),
+			SRC_IP2, DST_IP2, dev1:getMacString(),
+			args.size, args.flows
+		)
+	end
 	stats.startStatsTask{
 		devices = {
 			{ dev = dev1, file = "traffic-port1.csv", format = "csv" },
@@ -108,6 +115,7 @@ local function checkSequence(queue, bufs, last)
 end
 
 function sequenceCheck(rxQueue1, rxQueue2)
+	log:info("Verifying received sequence numbers...")
 	local bufs = memory.createBufArray()
 	local last1 = 0
 	local last2 = 0
