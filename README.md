@@ -10,7 +10,7 @@ sudo ./bind-interfaces.sh
 ./build/MoonGen <path-to-this-repo>/ixy-bench.lua --help
 ```
 
-Check `MoonGen/README.md` for build dependencies of MoonGen (on Debian/Ubuntu: `sudo apt-get install -y build-essential cmake linux-headers-`uname -r` pciutils libnuma-dev`)
+Check `MoonGen/README.md` for build dependencies of MoonGen (on Debian/Ubuntu: `sudo apt-get install -y build-essential cmake linux-headers-$(uname -r) pciutils libnuma-dev`)
 
 Testing the forwarder
 =====================
