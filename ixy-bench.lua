@@ -25,6 +25,8 @@ function configure(parser)
 	parser:option("-r --rate", "Transmit rate in Mbit/s."):default(0):convert(tonumber)
 	parser:option("-f --flows", "Number of flows (randomized source IP)."):default(1024):convert(tonumber)
 	parser:option("-s --size", "Packet size."):default(60):convert(tonumber)
+	parser:option("--dev1-stats-file", "Write IO statistics for device 1 to a CSV file"):target("stats1")
+	parser:option("--dev2-stats-file", "Write IO statistics for device 2 to a CSV file"):target("stats2")
 	parser:flag("-v --verify", "Try to receive packets and validate sequence numbers."):default(false)
 	parser:flag("-t --timestamps", "Take hardware timestamps of 1000 packets per second."):default(false)
 end
@@ -54,8 +56,8 @@ function master(args)
 	end
 	stats.startStatsTask{
 		devices = {
-			{ dev = dev1, file = "traffic-port1.csv", format = "csv" },
-			{ dev = dev2, file = "traffic-port2.csv", format = "csv" }
+			args.stats1 and { dev = dev1, file = args.stats1, format = "csv" } or dev1,
+			args.stats2 and { dev = dev2, file = args.stats2, format = "csv" } or dev2,
 		}
 	}
 	mg.waitForTasks()
